@@ -11,7 +11,7 @@ Backend: Bun + Hono API with Drizzle ORM (Bun SQLite) and better-auth for sign-u
 - **Database:** SQLite via `bun:sqlite` and Drizzle (`drizzle-orm/bun-sqlite`). Schema in `backend/src/db/schema.ts` (user, session, account, verification) matches better-auth’s Drizzle adapter.
 - **Auth:** better-auth with Drizzle adapter and email/password, mounted at `/api/auth/*`.
 - **User CRUD:** Handlers in `backend/src/handlers/users.ts`; list, get-by-id, update, delete. Create user = better-auth sign-up only (no separate `POST /api/users`).
-- **Migrations:** Schema applied with `drizzle-kit generate` and `drizzle-kit push` (or migrate). Config in `backend/drizzle.config.ts`.
+- **Migrations:** Schema applied with `bun run db:push` (Drizzle Kit uses the `better-sqlite3` dev dependency to connect). Generate with `bun run db:generate`. Config in `backend/drizzle.config.ts`.
 
 ---
 
@@ -48,6 +48,7 @@ This installs and uses **Bun** as defined in `devbox.json`. Then:
 ```sh
 cd backend
 bun install
+bun run db:push    # create DB tables (run once or after schema changes)
 bun run dev
 ```
 
@@ -58,6 +59,7 @@ Ensure Bun is installed, then from the project root:
 ```sh
 cd backend
 bun install
+bun run db:push    # create DB tables (run once or after schema changes)
 bun run dev
 ```
 
@@ -79,15 +81,17 @@ Use Postman (or any HTTP client). Base URL: `http://localhost:3000` (or your `PO
 
 Set `Content-Type: application/json` for POST bodies. Enable “Send cookies” in Postman so the session cookie is sent for get-session.
 
-### User CRUD
+### User CRUD (auth required, self-only)
+
+All `/api/users` routes require a valid session (send the cookie from sign-in). You can only read/update/delete **your own** user; otherwise you get `403 Forbidden`.
 
 | Action | Method | URL | Body (JSON) |
 |--------|--------|-----|-------------|
-| List users | `GET` | `/api/users` | — |
-| Get one user | `GET` | `/api/users/:id` | — |
-| Update user | `PATCH` | `/api/users/:id` | `{ "name": "Updated Name" }` or `{ "image": "https://..." }` |
-| Delete user | `DELETE` | `/api/users/:id` | — |
+| List users | `GET` | `/api/users` | — (returns `[currentUser]`) |
+| Get one user | `GET` | `/api/users/:id` | — (only your `id`) |
+| Update user | `PATCH` | `/api/users/:id` | `{ "name": "Updated Name" }` or `{ "image": "https://..." }` (only your `id`) |
+| Delete user | `DELETE` | `/api/users/:id` | — (only your `id`) |
 
-Use the user `id` from sign-up response or from `GET /api/users`. Delete removes the user and related session/account rows. Update returns 404 if the user is not found; same for get-one and delete.
+Without a session cookie you get `401 Unauthorized`. Use the user `id` from sign-up or from `GET /api/users` for get/patch/delete.
 
-Suggested flow: sign up → sign in → get-session → list users → get one → patch → delete (then list again to confirm).
+Suggested flow: sign up → sign in → get-session → list users → get one (your id) → patch → delete (then sign up again if needed).

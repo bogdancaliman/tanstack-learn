@@ -2,14 +2,19 @@ import type { Context } from "hono";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { user, session, account } from "../db/schema";
+import type { AuthVariables } from "../lib/requireAuth";
 
-export async function listUsers(c: Context) {
-  const rows = await db.select().from(user);
-  return c.json(rows);
+export async function listUsers(c: Context<{ Variables: AuthVariables }>) {
+  const currentUser = c.get("user");
+  return c.json([currentUser]);
 }
 
-export async function getUserById(c: Context) {
+export async function getUserById(c: Context<{ Variables: AuthVariables }>) {
   const id = c.req.param("id");
+  const currentUser = c.get("user");
+  if (id !== currentUser.id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
   const rows = await db.select().from(user).where(eq(user.id, id));
   if (rows.length === 0) {
     return c.json({ error: "User not found" }, 404);
@@ -17,8 +22,12 @@ export async function getUserById(c: Context) {
   return c.json(rows[0]);
 }
 
-export async function updateUser(c: Context) {
+export async function updateUser(c: Context<{ Variables: AuthVariables }>) {
   const id = c.req.param("id");
+  const currentUser = c.get("user");
+  if (id !== currentUser.id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
   const body = await c.req.json<{ name?: string; image?: string }>();
 
   const existing = await db.select().from(user).where(eq(user.id, id));
@@ -39,8 +48,12 @@ export async function updateUser(c: Context) {
   return c.json(updated);
 }
 
-export async function deleteUser(c: Context) {
+export async function deleteUser(c: Context<{ Variables: AuthVariables }>) {
   const id = c.req.param("id");
+  const currentUser = c.get("user");
+  if (id !== currentUser.id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
 
   const existing = await db.select().from(user).where(eq(user.id, id));
   if (existing.length === 0) {
